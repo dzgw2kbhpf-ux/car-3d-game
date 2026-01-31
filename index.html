@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simple 3D Car Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <style>
+    body { margin: 0; overflow: hidden; touch-action: manipulation; }
+    #info {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-family: sans-serif;
+      background: rgba(0,0,0,0.5);
+      padding: 8px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+<div id="info">画面をタップで前進</div>
+
+<script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
+<script>
+  // シーン
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x87ceeb);
+
+  // カメラ
+  const camera = new THREE.PerspectiveCamera(
+    60,
+    window.innerWidth / window.innerHeight,
+    0.1,
+    1000
+  );
+
+  // レンダラー
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // 光
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+  const light = new THREE.DirectionalLight(0xffffff, 0.8);
+  light.position.set(5, 10, 5);
+  scene.add(light);
+
+  // 地面
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(1000, 1000),
+    new THREE.MeshStandardMaterial({ color: 0x333333 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  scene.add(ground);
+
+  // 車（シンプル）
+  const car = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8, 0.6, 3),
+    new THREE.MeshStandardMaterial({ color: 0xff3333 })
+  );
+  body.position.y = 0.6;
+  car.add(body);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.3, 16);
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+
+  function wheel(x, z) {
+    const w = new THREE.Mesh(wheelGeo, wheelMat);
+    w.rotation.z = Math.PI / 2;
+    w.position.set(x, 0.3, z);
+    car.add(w);
+  }
+
+  wheel(0.8, 1.2);
+  wheel(-0.8, 1.2);
+  wheel(0.8, -1.2);
+  wheel(-0.8, -1.2);
+
+  scene.add(car);
+
+  // カメラ初期位置
+  camera.position.set(0, 3, -6);
+
+  let speed = 0;
+  let accelerating = false;
+
+  // タッチ操作
+  document.addEventListener("touchstart", () => accelerating = true);
+  document.addEventListener("touchend", () => accelerating = false);
+
+  // PC確認用
+  document.addEventListener("mousedown", () => accelerating = true);
+  document.addEventListener("mouseup", () => accelerating = false);
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    if (accelerating) {
+      speed += 0.002;
+    } else {
+      speed *= 0.98;
+    }
+
+    speed = Math.min(speed, 0.2);
+    car.position.z += speed;
+
+    camera.position.z = car.position.z - 6;
+    camera.lookAt(car.position);
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+
+  window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+</body>
+</html>
