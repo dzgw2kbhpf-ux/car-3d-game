@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>car-3d-game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+html,body{margin:0;padding:0;overflow:hidden}
+</style>
+</head>
+<body>
+
+<!-- three.js -->
+<script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
+<!-- ★これが無かったのが原因 -->
+<script src="https://unpkg.com/three@0.155.0/examples/js/loaders/GLTFLoader.js"></script>
+
+<script>
+/* ===== 基本 ===== */
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87ceeb);
+
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,5000);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0xcccccc,1.3));
+const dirLight=new THREE.DirectionalLight(0xffffff,1);
+dirLight.position.set(5,10,5);
+scene.add(dirLight);
+
+/* ===== 車（Porsche 911 GT1）===== */
+let car; // ← 後で使う
+
+const loader=new THREE.GLTFLoader();
+loader.load(
+  "porsche.glb",   // ★ GitHub に置いたファイル名
+  gltf=>{
+    car=gltf.scene;
+    car.scale.set(1,1,1);     // サイズは赤い車と同じ感覚
+    car.position.set(0,0.6,0);
+    scene.add(car);
+  },
+  undefined,
+  e=>{
+    alert("GLB読み込みエラー");
+    console.error(e);
+  }
+);
+
+/* ===== 定数 ===== */
+const CHUNK=50;
+const VIEW=6;
+const LANE=3.5;
+const ROAD_WIDTH=LANE*4;
+const SIDEWALK=3;
+const WALK_H=0.3;
+const BUILDING_OFFSET=5;
+const INTERVAL=4;
+const GROUND_Y=-0.02;
+const EXTEND=SIDEWALK*6;
+const GAP=0.25;
+const chunks=new Map();
+
+/* ===== 歩道テクスチャ ===== */
+function sidewalkTexture(){
+  const c=document.createElement("canvas");
+  c.width=c.height=512;
+  const ctx=c.getContext("2d");
+  ctx.fillStyle="#555";
+  ctx.fillRect(0,0,512,512);
+  for(let i=0;i<220;i++){
+    const s=[16,24,32,40][Math.floor(Math.random()*4)];
+    const x=Math.random()*(512-s);
+    const y=Math.random()*(512-s);
+    const g=90+Math.random()*30;
+    ctx.fillStyle=`rgb(${g},${g},${g})`;
+    ctx.fillRect(x,y,s,s);
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(3,3);
+  return t;
+}
+const sidewalkMat=new THREE.MeshStandardMaterial({map:sidewalkTexture()});
+
+/* ===== 地面 ===== */
+function addGround(g,w,d){
+  const m=new THREE.Mesh(
+    new THREE.PlaneGeometry(w,d),
+    sidewalkMat
+  );
+  m.rotation.x=-Math.PI/2;
+  m.position.y=GROUND_Y;
+  g.add(m);
+}
+
+/* ===== 建物 ===== */
+function addBuilding(x,z,w,d,g){
+  const h=18+Math.random()*6;
+  const body=new THREE.Mesh(
+    new THREE.BoxGeometry(w,h,d),
+    new THREE.MeshStandardMaterial({color:0xffffff})
+  );
+  body.position.set(x,h/2,z);
+  g.add(body);
+}
+
+/* ===== 直線Z ===== */
+function straightZ(){
+  const g=new THREE.Group();
+  addGround(g,ROAD_WIDTH+SIDEWALK*2+20,CHUNK+EXTEND*2+20);
+
+  const road=new THREE.Mesh(
+    new THREE.PlaneGeometry(ROAD_WIDTH,CHUNK),
+    new THREE.MeshStandardMaterial({color:0x222222})
+  );
+  road.rotation.x=-Math.PI/2;
+  g.add(road);
+
+  [-1,1].forEach(s=>{
+    const w=new THREE.Mesh(
+      new THREE.BoxGeometry(SIDEWALK,WALK_H,CHUNK+EXTEND*2),
+      sidewalkMat
+    );
+    w.position.set(
+      s*(ROAD_WIDTH/2+SIDEWALK/2+GAP),
+      WALK_H/2,
+      0
+    );
+    g.add(w);
+  });
+
+  return g;
+}
+
+/* ===== チャンク ===== */
+function createChunk(i){
+  const g=new THREE.Group();
+  const z=i*CHUNK+CHUNK/2;
+  const s=straightZ();
+  s.position.z=z;
+  g.add(s);
+  scene.add(g);
+  chunks.set(i,g);
+}
+
+/* ===== ループ ===== */
+function update(){
+  if(!car) return;
+  const cur=Math.floor(car.position.z/CHUNK);
+  for(let i=cur-VIEW;i<=cur+VIEW;i++){
+    if(!chunks.has(i)) createChunk(i);
+  }
+}
+
+camera.position.set(0,5,-12);
+
+function animate(){
+  requestAnimationFrame(animate);
+  if(car){
+    car.position.z+=1;
+    update();
+    camera.position.z=car.position.z-12;
+    camera.lookAt(0,1,car.position.z+20);
+  }
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>
